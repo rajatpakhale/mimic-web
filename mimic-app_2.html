@@ -1,0 +1,1192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0A0A0C">
+<title>Mimic — AI Design Interpreter</title>
+<title>Mimic — Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,600;1,9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0A0A0C;
+    --surface:#151519;
+    --surface-2:#1D1D22;
+    --line:#28282E;
+    --text:#F3F3F5;
+    --text-muted:#8B8B93;
+    --text-faint:#57575F;
+    --violet:#8B7CFF;
+    --coral:#FF7A59;
+    --gold:#FFC24B;
+    --success:#4ADE80;
+    --danger:#FF6B6B;
+    --font-display:'Fraunces', serif;
+    --font-body:'Inter', sans-serif;
+    --font-mono:'IBM Plex Mono', monospace;
+    --radius-lg:26px;
+    --radius-md:16px;
+    --radius-sm:10px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{ background:#000; font-family:var(--font-body); color:var(--text); -webkit-font-smoothing:antialiased; height:100%; overflow:hidden; margin:0; }
+  .stage{
+    height:100vh; width:100vw; display:flex; align-items:center; justify-content:center; overflow:hidden;
+    background:
+      radial-gradient(circle at 20% 15%, rgba(139,124,255,0.10), transparent 45%),
+      radial-gradient(circle at 85% 80%, rgba(255,122,89,0.08), transparent 45%),
+      #000;
+  }
+  .device-wrap{ display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; }
+  .device{
+    /* Fixed iPhone dimensions */
+    width:375px; height:812px;
+    background:var(--ink); border-radius:52px; border:10px solid #1a1a1e;
+    box-shadow:0 40px 90px -20px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.03);
+    position:relative; overflow:hidden;
+    transform-origin:center center;
+  }
+  .notch{ position:absolute; top:10px; left:50%; transform:translateX(-50%); width:120px; height:28px; background:#000; border-radius:20px; z-index:50; }
+  .statusbar{ display:flex; justify-content:space-between; align-items:center; padding:16px 26px 0 26px; font-family:var(--font-mono); font-size:11px; color:var(--text-muted); letter-spacing:0.02em; }
+  .screen{ position:absolute; inset:0; display:flex; flex-direction:column; opacity:0; pointer-events:none; transition:opacity 0.35s ease; overflow:hidden; }
+  .screen.active{ opacity:1; pointer-events:auto; }
+  .screen-body{ flex:1 1 auto; min-height:0; display:flex; flex-direction:column; padding:0 26px 26px 26px; overflow-y:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+  .screen-body::-webkit-scrollbar{ display:none; }
+
+  .palette-strip{ height:3px; margin:14px 26px 0 26px; border-radius:3px; background:linear-gradient(90deg, var(--violet), var(--coral), var(--gold)); background-size:200% 100%; animation:strip-shift 3.5s ease-in-out infinite; }
+  @keyframes strip-shift{ 0%,100%{background-position:0% 50%;} 50%{background-position:100% 50%;} }
+  .palette-strip.static{ animation:none; }
+
+  .wordmark{ font-family:var(--font-display); font-style:italic; font-weight:700; letter-spacing:-0.01em; }
+  .eyebrow{ font-family:var(--font-mono); font-size:11px; text-transform:uppercase; letter-spacing:0.12em; color:var(--text-faint); }
+  h1.headline{ font-family:var(--font-display); font-style:italic; font-weight:600; font-size:32px; line-height:1.15; color:var(--text); letter-spacing:-0.01em; }
+  p.sub{ font-size:14.5px; line-height:1.55; color:var(--text-muted); margin-top:10px; }
+
+  .btn{ display:flex; align-items:center; justify-content:center; height:54px; border-radius:16px; font-family:var(--font-body); font-weight:600; font-size:15px; border:none; cursor:pointer; transition:transform 0.15s ease, opacity 0.15s ease; width:100%; }
+  .btn:active{ transform:scale(0.97); }
+  .btn:disabled{ opacity:0.4; pointer-events:none; }
+  .btn-primary{ background:var(--text); color:#0A0A0C; }
+  .btn-secondary{ background:var(--surface-2); color:var(--text); border:1px solid var(--line); }
+
+  /* ---------- shared header w/ back button ---------- */
+  .screen-header{ display:flex; align-items:center; gap:12px; padding:14px 26px 0 26px; }
+  .screen-header .header-title{ font-size:13.5px; font-weight:600; color:var(--text); }
+  .icon-btn{ width:34px; height:34px; border-radius:10px; background:var(--surface); border:1px solid var(--line); display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0; transition:transform 0.15s ease, background 0.15s ease; }
+  .icon-btn:active{ transform:scale(0.92); background:var(--surface-2); }
+  .home-nav{ display:flex; align-items:center; justify-content:space-between; padding:14px 26px 0 26px; }
+  .home-nav .wordmark{ font-size:19px; }
+
+  #screen-splash .screen-body{ align-items:center; justify-content:center; text-align:center; gap:10px; }
+  #screen-splash .wordmark{ font-size:44px; }
+  #screen-splash .tag{ font-family:var(--font-mono); font-size:11px; letter-spacing:0.16em; text-transform:uppercase; color:var(--text-faint); margin-top:8px; }
+  #screen-splash .dot-loader{ display:flex; gap:6px; margin-top:34px; }
+  #screen-splash .dot-loader span{ width:5px; height:5px; border-radius:50%; background:var(--text-faint); animation:pulse 1.2s infinite ease-in-out; }
+  #screen-splash .dot-loader span:nth-child(2){ animation-delay:0.15s; }
+  #screen-splash .dot-loader span:nth-child(3){ animation-delay:0.3s; }
+
+  #screen-login .screen-body{ align-items:center; justify-content:center; text-align:center; gap:10px; }
+  #screen-login .wordmark{ font-size:44px; }
+  #screen-login .tag{ font-family:var(--font-mono); font-size:11px; letter-spacing:0.16em; text-transform:uppercase; color:var(--text-faint); margin-top:8px; }
+  .login-buttons{ display:flex; flex-direction:column; gap:12px; width:100%; margin-top:38px; padding:0 10px; box-sizing:border-box; }
+  .btn-login{ display:flex; align-items:center; justify-content:center; gap:10px; height:50px; border-radius:14px; font-family:var(--font-body); font-weight:600; font-size:14px; border:1px solid var(--line); cursor:pointer; transition:background 0.15s ease; width:100%; }
+  .btn-login-google{ background:var(--surface-2); color:var(--text); }
+  .btn-login-google:hover{ background:var(--surface); }
+  .btn-login-apple{ background:#fff; color:#000; border-color:#fff; }
+  .btn-login-apple:hover{ background:#e8e8e8; }
+  .login-terms{ font-size:10.5px; color:var(--text-faint); margin-top:24px; padding:0 16px; line-height:1.5; }
+  .login-terms a{ color:var(--text-muted); text-decoration:underline; }
+
+  #screen-welcome .screen-body{ align-items:center; justify-content:center; text-align:center; gap:10px; }
+  .welcome-emoji{ font-size:48px; margin-bottom:4px; }
+  .welcome-title{ font-family:var(--font-display); font-style:italic; font-weight:600; font-size:26px; color:var(--text); }
+  .welcome-sub{ font-size:13.5px; color:var(--text-muted); max-width:260px; line-height:1.5; }
+  @keyframes pulse{ 0%,80%,100%{ opacity:0.25; transform:scale(0.85); } 40%{ opacity:1; transform:scale(1); } }
+
+  #screen-home .screen-body{ padding-top:36px; gap:26px; }
+  .upload-card{ margin-top:6px; border:1.5px dashed var(--line); border-radius:var(--radius-lg); background:var(--surface); padding:34px 24px; display:flex; flex-direction:column; align-items:center; text-align:center; gap:14px; cursor:pointer; transition:border-color 0.2s ease, background 0.2s ease; }
+  .upload-card:active{ border-color:var(--violet); background:var(--surface-2); }
+  .upload-glyph{ width:52px; height:52px; border-radius:16px; background:var(--surface-2); border:1px solid var(--line); display:flex; align-items:center; justify-content:center; }
+  .upload-card .cta-label{ font-weight:600; font-size:15px; }
+  .upload-card .cta-sub{ font-size:12.5px; color:var(--text-faint); }
+  .home-error{ margin-top:6px; font-size:12.5px; color:var(--danger); font-family:var(--font-mono); display:none; }
+
+  #screen-loading .screen-body{ align-items:center; justify-content:center; gap:26px; text-align:center; }
+  #screen-generating .screen-body{ align-items:center; justify-content:center; gap:26px; text-align:center; }
+  #loading-active, #generating-active{ display:flex; flex-direction:column; align-items:center; gap:0; }
+  .scan-frame{ width:150px; height:190px; border-radius:18px; background:var(--surface-2); border:1px solid var(--line); position:relative; overflow:hidden; margin:0 auto; }
+  .scan-frame img{ width:100%; height:100%; object-fit:cover; opacity:0.85; }
+  .scan-beam{ position:absolute; left:0; right:0; height:2px; background:linear-gradient(90deg, transparent, var(--violet), var(--coral), transparent); box-shadow:0 0 12px 1px rgba(139,124,255,0.6); animation:beam 2.2s ease-in-out infinite; }
+  @keyframes beam{ 0%{ top:6%; opacity:0; } 10%{ opacity:1; } 90%{ opacity:1; } 100%{ top:94%; opacity:0; } }
+  .step-list{ display:flex; flex-direction:column; gap:13px; width:100%; padding:0 14px; text-align:left; }
+  .step-item{ display:flex; align-items:center; gap:11px; font-size:13.5px; color:var(--text-faint); transition:color 0.3s ease; }
+  .step-item.done{ color:var(--text-muted); }
+  .step-item.current{ color:var(--text); }
+  .step-mark{ width:16px; height:16px; border-radius:50%; border:1.5px solid var(--line); flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:9px; transition:all 0.3s ease; }
+  .step-item.done .step-mark{ background:var(--success); border-color:var(--success); }
+  .step-item.done .step-mark::after{ content:'✓'; font-size:9px; color:#08240f; }
+  .step-item.current .step-mark{ border-color:var(--violet); }
+  .step-item.current .step-mark::after{ content:''; width:6px; height:6px; border-radius:50%; background:var(--violet); animation:pulse 1s infinite ease-in-out; }
+  .loading-error{ display:none; flex-direction:column; align-items:center; gap:14px; text-align:center; }
+  .loading-error p{ font-size:13px; color:var(--text-muted); max-width:230px; }
+
+  .form-header{ padding-top:16px; }
+  .detect-summary{ font-family:var(--font-mono); font-size:11px; color:var(--text-faint); margin-top:8px; }
+
+  /* Collapsible image preview on Edit screen */
+  .preview-collapse{ margin-top:14px; border-radius:var(--radius-md); border:1px solid var(--line); background:var(--surface); }
+  .preview-collapse-header{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:10px 14px; cursor:pointer; transition:background 0.15s ease;
+    border-radius:var(--radius-md);
+  }
+  .preview-collapse-header:active{ background:var(--surface-2); }
+  .preview-collapse-header .preview-label{
+    font-family:var(--font-mono); font-size:11px; text-transform:uppercase;
+    letter-spacing:0.1em; color:var(--text-muted); display:flex; align-items:center; gap:8px;
+  }
+  .preview-collapse-header .chevron{
+    color:var(--text-faint); font-size:14px; transition:transform 0.25s ease;
+  }
+  .preview-collapse-header .chevron.open{ transform:rotate(180deg); }
+  .preview-collapse-body{
+    display:none;
+    border-top:1px solid var(--line);
+    border-radius:0 0 var(--radius-md) var(--radius-md);
+    overflow:hidden;
+    /* no max-height, no forced crop — box is exactly as tall as the image needs */
+  }
+  .preview-collapse-body.open{ display:block; }
+  .preview-collapse-body img{
+    width:100%;
+    height:auto;
+    display:block;
+    /* natural aspect ratio, whatever the uploaded image's real dimensions are */
+  }
+
+  .field-group{ margin-top:16px; display:flex; flex-direction:column; gap:16px; padding-bottom:30px; }
+  .field label{ display:flex; align-items:center; gap:8px; font-size:11.5px; font-weight:600; color:var(--text-muted); margin-bottom:7px; text-transform:uppercase; letter-spacing:0.05em; }
+  .layer-badge{ display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; border-radius:50%; background:var(--surface-2); border:1px solid var(--line); color:var(--text-muted); font-family:var(--font-mono); font-size:9px; font-weight:600; flex-shrink:0; text-transform:none; letter-spacing:0; }
+  .field input[type=text]{ width:100%; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-sm); padding:14px 15px; color:var(--text); font-family:var(--font-body); font-size:14.5px; outline:none; transition:border-color 0.15s ease; }
+  .field input[type=text]:focus{ border-color:var(--violet); }
+  .field-media{ display:flex; align-items:center; gap:12px; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-sm); padding:10px 14px; }
+  .media-thumb{ width:38px; height:38px; border-radius:9px; background:var(--surface-2); border:1px solid var(--line); flex-shrink:0; overflow:hidden; display:flex;align-items:center;justify-content:center; position:relative; }
+  .media-thumb img{ width:100%; height:100%; object-fit:cover; }
+  .field-media .media-label{ font-size:13.5px; color:var(--text-muted); flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .field-media .replace-link{ font-size:12.5px; color:var(--text); font-weight:600; cursor:pointer; }
+  .view-original-link{ font-size:11.5px; color:var(--violet); font-family:var(--font-mono); cursor:pointer; margin-top:7px; display:inline-block; }
+  .color-row{ display:flex; gap:12px; }
+  .color-field{ flex:1; }
+  .color-field .hint-sub{ font-size:10.5px; color:var(--text-faint); margin-top:5px; font-family:var(--font-mono); }
+  .swatch-input{ display:flex; align-items:center; gap:10px; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-sm); padding:10px 12px; position:relative; }
+  .swatch-input input[type=color]{ width:26px; height:26px; border-radius:8px; border:1px solid rgba(255,255,255,0.12); flex-shrink:0; padding:0; background:none; cursor:pointer; }
+  .swatch-input .hex{ font-family:var(--font-mono); font-size:12.5px; color:var(--text-muted); }
+  .form-footer{ padding:14px 26px 40px 26px; background:var(--ink); border-top:1px solid var(--line); flex-shrink:0; }
+
+  /* Generate button with animated glow */
+  .btn-generate{
+    background:var(--text); color:#0A0A0C;
+    position:relative; overflow:hidden;
+    transition:all 0.3s ease;
+  }
+  .btn-generate::before{
+    content:''; position:absolute; inset:-2px;
+    border-radius:18px;
+    background:linear-gradient(90deg, var(--violet), var(--coral), var(--gold), var(--violet));
+    background-size:300% 100%;
+    animation:glow-shift 3s ease-in-out infinite;
+    opacity:0; transition:opacity 0.3s ease;
+    z-index:-1;
+  }
+  .btn-generate:hover::before, .btn-generate:focus::before{ opacity:1; }
+  .btn-generate:hover{ background:var(--violet); color:#fff; box-shadow:0 0 28px rgba(139,124,255,0.45); }
+  @keyframes glow-shift{ 0%,100%{background-position:0% 50%;} 50%{background-position:100% 50%;} }
+  .section-divider{ display:flex; align-items:center; gap:10px; margin-top:6px; }
+  .section-divider .eyebrow{ white-space:nowrap; }
+  .section-divider .line{ height:1px; background:var(--line); flex:1; }
+
+  #screen-result .screen-body{ padding-top:16px; }
+  .result-preview{ margin-top:14px; border-radius:22px; overflow:hidden; border:1px solid var(--line); background:var(--surface); position:relative; display:flex; align-items:center; justify-content:center; }
+  .result-preview canvas{ width:100%; display:block; }
+  .result-meta{ display:flex; justify-content:space-between; align-items:center; margin-top:16px; }
+  .result-meta .eyebrow{ color:var(--text-muted); }
+  .match-badge{ font-family:var(--font-mono); font-size:11px; color:var(--success); display:flex; align-items:center; gap:6px; }
+  .match-badge::before{ content:''; width:6px; height:6px; border-radius:50%; background:var(--success); }
+  .result-footer{ padding-top:22px; display:flex; justify-content:center; gap:28px; }
+  .icon-action{ display:flex; flex-direction:column; align-items:center; gap:8px; background:none; border:none; cursor:pointer; }
+  .icon-action .circle{ width:52px; height:52px; border-radius:50%; display:flex; align-items:center; justify-content:center; transition:transform 0.15s ease, background 0.25s ease, border-color 0.25s ease; background:var(--surface-2); border:1px solid var(--line); }
+  .icon-action .circle svg{ stroke:var(--text); }
+  .icon-action:active .circle{ transform:scale(0.92); }
+  .icon-action:hover .circle{ background:var(--surface); border-color:var(--text-faint); }
+  .icon-action .action-label{ font-size:11px; color:var(--text-muted); font-family:var(--font-mono); }
+
+  .hint{ font-family:var(--font-mono); font-size:10.5px; color:var(--text-faint); text-align:center; max-width:320px; }
+  input[type=file]{ display:none; }
+
+  /* view-original modal */
+  .modal-backdrop{ position:absolute; inset:0; background:rgba(0,0,0,0.75); display:flex; align-items:center; justify-content:center; opacity:0; pointer-events:none; transition:opacity 0.25s ease; z-index:80; padding:30px; }
+
+  .drawer-backdrop{ position:absolute; inset:0; background:rgba(0,0,0,0.6); opacity:0; pointer-events:none; transition:opacity 0.25s ease; z-index:90; }
+  .drawer-backdrop.open{ opacity:1; pointer-events:auto; }
+  .profile-drawer{ position:absolute; top:0; bottom:0; left:0; width:78%; max-width:280px; background:var(--surface); border-right:1px solid var(--line); box-shadow:20px 0 40px rgba(0,0,0,0.35); transform:translateX(-100%); transition:transform 0.3s cubic-bezier(.4,0,.2,1); z-index:91; display:flex; flex-direction:column; padding:22px 18px; box-sizing:border-box; }
+  .profile-drawer.open{ transform:translateX(0); }
+  .profile-head{ display:flex; align-items:center; gap:12px; padding-bottom:18px; border-bottom:1px solid var(--line); margin-bottom:18px; }
+  .profile-avatar{ width:44px; height:44px; border-radius:50%; background:linear-gradient(135deg, var(--violet), var(--coral)); display:flex; align-items:center; justify-content:center; font-weight:600; font-size:16px; color:#fff; flex-shrink:0; }
+  .profile-name{ font-size:14px; font-weight:600; color:var(--text); }
+  .profile-email{ font-size:11.5px; color:var(--text-muted); margin-top:2px; }
+  .drawer-section-title{ font-family:var(--font-mono); font-size:10px; text-transform:uppercase; letter-spacing:0.1em; color:var(--text-faint); margin-bottom:10px; }
+  .history-empty{ font-size:12.5px; color:var(--text-muted); padding:14px 0; }
+  .history-item{ display:flex; align-items:center; gap:10px; padding:9px 0; border-bottom:1px solid var(--line); }
+  .history-thumb{ width:34px; height:34px; border-radius:8px; background:var(--surface-2); border:1px solid var(--line); flex-shrink:0; object-fit:cover; }
+  .history-info{ font-size:12.5px; color:var(--text); }
+  .history-time{ font-size:10.5px; color:var(--text-faint); }
+  .drawer-footer{ margin-top:auto; padding-top:16px; border-top:1px solid var(--line); }
+  .drawer-signout{ width:100%; padding:10px; border-radius:10px; background:var(--surface-2); border:1px solid var(--line); color:var(--text-muted); font-size:12.5px; text-align:center; }
+  .modal-backdrop.show{ opacity:1; pointer-events:auto; }
+  .modal-card{ background:var(--surface); border:1px solid var(--line); border-radius:18px; padding:16px; max-width:100%; display:flex; flex-direction:column; gap:12px; }
+  .modal-card .modal-title{ font-family:var(--font-mono); font-size:11px; text-transform:uppercase; letter-spacing:0.1em; color:var(--text-muted); }
+  .modal-card canvas{ max-width:100%; border-radius:10px; border:1px solid var(--line); }
+  .modal-card .btn{ height:44px; }
+  /* ---------- RESPONSIVE: full-screen on mobile, phone mockup on desktop ---------- */
+  @media (max-width: 500px){
+    html,body{ height:100%; overflow:hidden; }
+    .device-wrap{ width:100% !important; height:100% !important; gap:0; }
+    .device{
+      width:100% !important; height:100% !important;
+      border-radius:0 !important; border:none !important;
+      box-shadow:none !important; transform:none !important;
+    }
+    .notch{ display:none; }
+    .statusbar{ display:none; }
+    .screen-body{ padding:0 20px 20px 20px; }
+    .home-nav{ padding:16px 20px 0 20px; }
+    .screen-header{ padding:14px 20px 0 20px; }
+    .form-footer{ padding:0 20px 28px 20px; }
+    .palette-strip{ margin:14px 20px 0 20px; }
+    #screen-login .screen-body{ padding-top: env(safe-area-inset-top, 20px); }
+    #screen-splash .screen-body{ padding-top: env(safe-area-inset-top, 20px); }
+    #screen-welcome .screen-body{ padding-top: env(safe-area-inset-top, 20px); }
+  }
+
+  @media (min-width: 501px){
+    body{ display:flex; align-items:center; justify-content:center; }
+  }
+</style>
+</head>
+<body>
+
+<div class="stage">
+  <div class="device-wrap">
+
+    <div class="device">
+      <div class="notch"></div>
+
+      <!-- PROFILE DRAWER -->
+      <div class="drawer-backdrop" id="drawer-backdrop" onclick="toggleProfileDrawer(false)"></div>
+      <div class="profile-drawer" id="profile-drawer">
+        <div class="profile-head" style="justify-content:space-between; align-items:flex-start;">
+          <div style="display:flex; align-items:center; gap:12px;">
+            <div class="profile-avatar">R</div>
+            <div>
+              <div class="profile-name">Rajat</div>
+              <div class="profile-email">rajat@example.com</div>
+            </div>
+          </div>
+          <div class="icon-btn" onclick="toggleProfileDrawer(false)" style="flex-shrink:0;">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="#F3F3F5" stroke-width="2" stroke-linecap="round"/></svg>
+          </div>
+        </div>
+        <div class="drawer-section-title">History</div>
+        <div id="history-list">
+          <div class="history-empty">Your generated designs will show up here.</div>
+        </div>
+        <div class="drawer-footer">
+          <div class="drawer-signout" onclick="toggleProfileDrawer(false); toggleSignoutConfirm(true);" style="cursor:pointer;">Sign out</div>
+        </div>
+      </div>
+
+      <!-- SIGN OUT CONFIRM -->
+      <div class="modal-backdrop" id="signout-modal" onclick="if(event.target===this) toggleSignoutConfirm(false)">
+        <div class="modal-card">
+          <div class="modal-title">Sign out?</div>
+          <p style="font-size:12.5px; color:var(--text-muted); margin:0;">You'll need to sign back in to access your designs.</p>
+          <div style="display:flex; gap:10px; margin-top:4px;">
+            <button class="btn btn-secondary" style="flex:1;" onclick="toggleSignoutConfirm(false)">Cancel</button>
+            <button class="btn" style="flex:1; background:var(--danger); color:#fff;" onclick="confirmSignout()">Sign out</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- HISTORY VIEW -->
+      <div class="modal-backdrop" id="history-view-modal" onclick="closeHistoryView(event)">
+        <div class="modal-card">
+          <div class="modal-title" id="history-view-label">Design</div>
+          <img id="history-view-img" src="" alt="" style="width:100%; border-radius:12px; display:block;">
+          <button class="btn btn-secondary" onclick="closeHistoryView()">Close</button>
+        </div>
+      </div>
+
+      <!-- SPLASH -->
+      <div class="screen active" id="screen-splash">
+        <div class="statusbar"><span>9:41</span><span>••••</span></div>
+        <div class="screen-body">
+          <div class="wordmark">Mimic</div>
+          <div class="tag">AI Design Interpreter</div>
+          <div class="dot-loader"><span></span><span></span><span></span></div>
+        </div>
+      </div>
+
+      <!-- LOGIN -->
+      <div class="screen" id="screen-login">
+        <div class="statusbar"><span>9:41</span><span>••••</span></div>
+        <div class="screen-body">
+          <div class="wordmark">Mimic</div>
+          <div class="tag">AI Design Interpreter</div>
+          <div class="login-buttons">
+            <button class="btn-login btn-login-google" onclick="handleLogin()">
+              <svg width="16" height="16" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+              Continue with Google
+            </button>
+            <button class="btn-login btn-login-apple" onclick="handleLogin()">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="#000"><path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.4C3.79 16.17 4.36 9.53 8.7 9.28c1.23.06 2.08.7 2.79.73.99-.2 1.95-.77 3.01-.7 1.28.1 2.24.59 2.87 1.5-2.63 1.58-2.01 5.05.37 6.02-.5 1.3-.92 2.14-1.7 3.45zM12.03 9.2C11.88 7.16 13.5 5.5 15.4 5.35c.27 2.33-2.1 4.09-3.37 3.85z"/></svg>
+              Continue with Apple
+            </button>
+          </div>
+          <div class="login-terms">By continuing, you agree to Mimic's <a href="#">Terms</a> and <a href="#">Privacy Policy</a></div>
+        </div>
+      </div>
+
+      <!-- WELCOME -->
+      <div class="screen" id="screen-welcome">
+        <div class="statusbar"><span>9:41</span><span>••••</span></div>
+        <div class="screen-body">
+          <div class="welcome-emoji">👋</div>
+          <div class="welcome-title">Welcome to Mimic</div>
+          <div class="welcome-sub">Upload any design you love. We'll figure out the rest.</div>
+        </div>
+      </div>
+
+      <!-- HOME -->
+      <div class="screen" id="screen-home">
+        <div class="statusbar"><span>9:41</span><span>••••</span></div>
+        <div class="home-nav">
+          <div class="wordmark">Mimic</div>
+          <div class="icon-btn" onclick="toggleProfileDrawer(true)">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="#B5B5BC" stroke-width="1.6"/><path d="M4 20c0-4 3.5-6 8-6s8 2 8 6" stroke="#B5B5BC" stroke-width="1.6"/></svg>
+          </div>
+        </div>
+        <div class="screen-body">
+          <div class="hero-copy">
+            <h1 class="headline">Upload a design.<br>Make it yours.</h1>
+            <p class="sub">Mimic studies the layout, then hands you exactly what to change. Everything else stays untouched.</p>
+          </div>
+
+          <div class="upload-card" id="upload-card">
+            <div class="upload-glyph">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 16V4M12 4L7 9M12 4l5 5" stroke="#F3F3F5" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" stroke="#F3F3F5" stroke-width="1.7" stroke-linecap="round"/></svg>
+            </div>
+            <div class="cta-label">Upload Design</div>
+            <div class="cta-sub">PNG or JPG — poster or social post</div>
+          </div>
+          <input type="file" id="file-input" accept="image/png, image/jpeg, image/webp">
+          <div class="home-error" id="home-error"></div>
+        </div>
+      </div>
+
+      <!-- LOADING -->
+      <div class="screen" id="screen-loading">
+        <div class="statusbar"><span>9:41</span><span>••••</span></div>
+        <div class="screen-header">
+          <div class="icon-btn" onclick="cancelLoading()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M15 18l-6-6 6-6" stroke="#F3F3F5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div class="header-title">Analyzing</div>
+        </div>
+        <div class="screen-body">
+          <div id="loading-active">
+            <div class="scan-frame">
+              <img id="scan-thumb" src="" alt="">
+              <div class="scan-beam"></div>
+            </div>
+            <div class="step-list" id="step-list" style="margin-top:26px;">
+              <div class="step-item" data-step="0"><div class="step-mark"></div>Analyzing typography</div>
+              <div class="step-item" data-step="1"><div class="step-mark"></div>Detecting layout</div>
+              <div class="step-item" data-step="2"><div class="step-mark"></div>Understanding hierarchy</div>
+              <div class="step-item" data-step="3"><div class="step-mark"></div>Identifying editable content</div>
+              <div class="step-item" data-step="4"><div class="step-mark"></div>Preparing template</div>
+            </div>
+          </div>
+          <div class="loading-error" id="loading-error">
+            <div class="eyebrow" style="color:var(--danger);">Analysis failed</div>
+            <p id="loading-error-msg">Something went wrong reading that design. Try again, or use a different image.</p>
+            <button class="btn btn-secondary" style="width:auto; padding:0 22px;" onclick="goTo('home')">Back to Home</button>
+            <div id="debug-output" style="display:none; margin-top:16px; width:100%; text-align:left; background:#000; border:1px solid var(--line); border-radius:10px; padding:12px; font-family:var(--font-mono); font-size:10px; color:#6ee7b7; max-height:200px; overflow:auto; white-space:pre-wrap; word-break:break-word;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- FORM -->
+      <div class="screen" id="screen-form">
+        <div class="statusbar"><span>9:41</span><span>••••</span></div>
+        <div class="screen-header">
+          <div class="icon-btn" onclick="goTo('home')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M15 18l-6-6 6-6" stroke="#F3F3F5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div class="header-title">Edit</div>
+        </div>
+        <div class="palette-strip static"></div>
+        <div class="screen-body" style="padding-top:0;">
+          <div class="form-header">
+            <h1 class="headline" style="font-size:24px;">Edit the content</h1>
+            <div class="detect-summary" id="detect-summary">— detected</div>
+          </div>
+          <div class="preview-collapse" id="preview-collapse">
+            <div class="preview-collapse-header" onclick="toggleFormPreview()">
+              <div class="preview-label">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="3" stroke="#8B8B93" stroke-width="1.5"/><circle cx="9" cy="9" r="1.5" fill="#8B8B93"/><path d="M4 18l5-5 3 3 4-4 4 4.5" stroke="#8B8B93" stroke-width="1.5"/></svg>
+                Original design
+              </div>
+              <span class="chevron" id="preview-chevron">▾</span>
+            </div>
+            <div class="preview-collapse-body open" id="preview-body">
+              <img id="form-preview-img" src="" alt="Uploaded design">
+            </div>
+          </div>
+          <div class="field-group" id="dynamic-fields"></div>
+        </div>
+        <div class="form-footer">
+          <button class="btn btn-generate" id="generate-btn" onclick="generateComposite()">Generate</button>
+        </div>
+      </div>
+
+      <!-- GENERATING -->
+      <div class="screen" id="screen-generating">
+        <div class="statusbar"><span>9:41</span><span>••••</span></div>
+        <div class="screen-header">
+          <div class="header-title">Generating</div>
+        </div>
+        <div class="screen-body">
+          <div id="generating-active">
+            <div class="scan-frame">
+              <img id="generating-thumb" src="" alt="">
+              <div class="scan-beam"></div>
+            </div>
+            <div class="step-list" id="generating-step-list" style="margin-top:26px;">
+              <div class="step-item" data-step="0"><div class="step-mark"></div>Your design, in the making</div>
+              <div class="step-item" data-step="1"><div class="step-mark"></div>Placing your content</div>
+              <div class="step-item" data-step="2"><div class="step-mark"></div>Matching the original style</div>
+              <div class="step-item" data-step="3"><div class="step-mark"></div>Almost there</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RESULT -->
+      <div class="screen" id="screen-result">
+        <div class="statusbar"><span>9:41</span><span>••••</span></div>
+        <div class="screen-header">
+          <div class="icon-btn" onclick="goTo('form')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M15 18l-6-6 6-6" stroke="#F3F3F5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div class="header-title">Result</div>
+        </div>
+        <div class="screen-body">
+          <h1 class="headline" style="font-size:24px;">Your design</h1>
+          <div class="result-preview"><canvas id="result-canvas"></canvas></div>
+          <div class="result-footer">
+            <button class="icon-action" onclick="goTo('form')">
+              <div class="circle"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M4 4v6h6M20 20v-6h-6" stroke="#F3F3F5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4.5 15a8 8 0 0 0 14.2 3M19.5 9A8 8 0 0 0 5.3 6" stroke="#F3F3F5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+              <div class="action-label">Regenerate</div>
+            </button>
+            <button class="icon-action" onclick="downloadResult()">
+              <div class="circle"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 3v12m0 0l-4.5-4.5M12 15l4.5-4.5" stroke="#F3F3F5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 18v1a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-1" stroke="#F3F3F5" stroke-width="2" stroke-linecap="round"/></svg></div>
+              <div class="action-label">Download</div>
+            </button>
+            <button class="icon-action" onclick="resetFlow()">
+              <div class="circle"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="#F3F3F5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+              <div class="action-label">New</div>
+            </button>
+          </div>
+          
+        </div>
+      </div>
+
+      <!-- VIEW ORIGINAL MODAL -->
+      <div class="modal-backdrop" id="view-modal" onclick="closeViewOriginal(event)">
+        <div class="modal-card" onclick="event.stopPropagation()">
+          <div class="modal-title" id="view-modal-title">Original region</div>
+          <canvas id="view-canvas"></canvas>
+          <button class="btn btn-secondary" onclick="closeViewOriginal()">Close</button>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+</div>
+
+<script>
+
+  function goTo(name){
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById('screen-' + name).classList.add('active');
+  }
+  goTo('splash');
+  setTimeout(() => { if(document.getElementById('screen-splash').classList.contains('active')) goTo('login'); }, 1500);
+
+  function handleLogin(){
+    goTo('welcome');
+    setTimeout(() => { if(document.getElementById('screen-welcome').classList.contains('active')) goTo('home'); }, 2000);
+  }
+
+  function toggleProfileDrawer(open){
+    document.getElementById('profile-drawer').classList.toggle('open', open);
+    document.getElementById('drawer-backdrop').classList.toggle('open', open);
+  }
+
+  function toggleSignoutConfirm(open){
+    document.getElementById('signout-modal').classList.toggle('show', open);
+  }
+
+  function confirmSignout(){
+    toggleSignoutConfirm(false);
+    toggleProfileDrawer(false);
+    goTo('splash');
+    setTimeout(() => { if(document.getElementById('screen-splash').classList.contains('active')) goTo('login'); }, 1500);
+  }
+
+  // ---------- history (in-memory for this session; not persisted yet) ----------
+  let historyList = [];
+
+  function addHistoryEntry(canvas){
+    const thumbCanvas = document.createElement('canvas');
+    const maxDim = 120;
+    const scale = Math.min(maxDim / canvas.width, maxDim / canvas.height);
+    thumbCanvas.width = Math.round(canvas.width * scale);
+    thumbCanvas.height = Math.round(canvas.height * scale);
+    thumbCanvas.getContext('2d').drawImage(canvas, 0, 0, thumbCanvas.width, thumbCanvas.height);
+
+    const headlineSeg = Object.keys(analysisData || {}).find(k => k.startsWith('seg_') && analysisData[k].role === 'headline');
+    const inputEl = headlineSeg ? document.getElementById('field-' + headlineSeg) : null;
+    const label = (inputEl ? inputEl.value : (headlineSeg && analysisData[headlineSeg].text)) || 'Untitled design';
+
+    historyList.unshift({
+      thumb: thumbCanvas.toDataURL('image/jpeg', 0.7),
+      full: canvas.toDataURL('image/png'),
+      label: label.length > 28 ? label.slice(0, 28) + '…' : label,
+      time: 'Just now'
+    });
+    renderHistory();
+  }
+
+  function renderHistory(){
+    const el = document.getElementById('history-list');
+    if(!historyList.length){
+      el.innerHTML = '<div class="history-empty">Your generated designs will show up here.</div>';
+      return;
+    }
+    el.innerHTML = historyList.map((h, i) => `
+      <div class="history-item" onclick="openHistoryItem(${i})" style="cursor:pointer;">
+        <img class="history-thumb" src="${h.thumb}" alt="">
+        <div>
+          <div class="history-info">${h.label}</div>
+          <div class="history-time">${h.time}</div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function openHistoryItem(i){
+    const item = historyList[i];
+    if(!item) return;
+    toggleProfileDrawer(false);
+    document.getElementById('history-view-img').src = item.full;
+    document.getElementById('history-view-label').textContent = item.label;
+    document.getElementById('history-view-modal').classList.add('show');
+  }
+
+  function closeHistoryView(e){
+    if(e && e.target !== e.currentTarget) return;
+    document.getElementById('history-view-modal').classList.remove('show');
+  }
+
+  // ---------- state ----------
+  let baseImage = null;
+  let baseImageMediaType = 'image/jpeg';
+  let baseImageBase64 = '';
+  let analysisData = null;
+  let orderedLayerKeys = [];
+  let replacedImages = {};
+  let stepTimer = null;
+  let genStepTimer = null;
+  let analysisCancelled = false;
+
+  const uploadCard = document.getElementById('upload-card');
+  const fileInput = document.getElementById('file-input');
+  uploadCard.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', (e) => {
+    if(e.target.files && e.target.files[0]) handleFile(e.target.files[0]);
+  });
+
+  function showHomeError(msg){
+    const el = document.getElementById('home-error');
+    el.textContent = msg;
+    el.style.display = 'block';
+  }
+
+  function resizeImageFile(file, maxDim){
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+          let w = img.width, h = img.height;
+          const scale = Math.min(1, maxDim / Math.max(w, h));
+          w = Math.round(w * scale);
+          h = Math.round(h * scale);
+          const canvas = document.createElement('canvas');
+          canvas.width = w; canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, w, h);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.87);
+          const base64 = dataUrl.split(',')[1];
+          const outImg = new Image();
+          outImg.onload = () => resolve({ img: outImg, dataUrl, base64, mediaType: 'image/jpeg', width: w, height: h });
+          outImg.src = dataUrl;
+        };
+        img.onerror = reject;
+        img.src = reader.result;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function handleFile(file){
+    document.getElementById('home-error').style.display = 'none';
+    try{
+      const resized = await resizeImageFile(file, 1100);
+      baseImage = resized.img;
+      baseImageBase64 = resized.base64;
+      baseImageMediaType = resized.mediaType;
+      document.getElementById('scan-thumb').src = resized.dataUrl;
+      goTo('loading');
+      runAnalysis();
+    }catch(err){
+      showHomeError('Could not read that file. Try a PNG or JPG.');
+    }
+  }
+
+  function cancelLoading(){
+    analysisCancelled = true;
+    clearInterval(stepTimer);
+    goTo('home');
+  }
+
+  function resetStepUI(){
+    document.getElementById('loading-active').style.display = 'block';
+    document.getElementById('loading-error').style.display = 'none';
+    document.querySelectorAll('#step-list .step-item').forEach(i => i.classList.remove('done','current'));
+  }
+
+  function runAnalysis(){
+    analysisCancelled = false;
+    resetStepUI();
+    const items = document.querySelectorAll('#step-list .step-item');
+    let i = 0;
+    clearInterval(stepTimer);
+    function tick(){
+      if(i > 0 && items[i-1]) { items[i-1].classList.remove('current'); items[i-1].classList.add('done'); }
+      if(i < items.length - 1){ items[i].classList.add('current'); i++; }
+      else if(i === items.length - 1){ items[i].classList.add('current'); }
+    }
+    tick();
+    stepTimer = setInterval(tick, 700);
+
+    callClaudeVision(baseImageBase64, baseImageMediaType)
+      .then(data => {
+        if(analysisCancelled) return;
+        clearInterval(stepTimer);
+        document.querySelectorAll('#step-list .step-item').forEach(i => { i.classList.add('done'); i.classList.remove('current'); });
+        analysisData = normalizeTextSegments(data);
+        replacedImages = {};
+        setTimeout(() => { if(!analysisCancelled){ buildForm(analysisData); goTo('form'); } }, 450);
+      })
+      .catch(err => {
+        if(analysisCancelled) return;
+        clearInterval(stepTimer);
+        document.getElementById('loading-active').style.display = 'none';
+        document.getElementById('loading-error').style.display = 'flex';
+        document.getElementById('loading-error-msg').textContent = err.message || 'Something went wrong reading that design.';
+        const dbg = document.getElementById('debug-output');
+        if(lastRawResponse){
+          dbg.style.display = 'block';
+          dbg.textContent = lastRawResponse;
+        }
+      });
+  }
+
+  const ANALYSIS_PROMPT = `You are the vision backend for "Mimic", an app that lets a person reuse the LAYOUT of an uploaded poster/social graphic while swapping the content.
+
+Look at the attached image and return ONLY raw JSON (no markdown fences, no commentary) matching this shape. Omit a key entirely if that element is not present in the image.
+
+{
+  "brandName": {"text": string, "x": number, "y": number, "w": number, "h": number, "textColor": "#hex", "bgColor": "#hex", "align": "left|center|right", "fontWeight": "bold|regular", "fontSizePct": number},
+  "textSegments": [
+    {"text": string, "role": "headline|subtitle|cta", "line": number, "order": number, "x": number, "y": number, "w": number, "h": number, "textColor": "#hex", "bgColor": "#hex", "align": "left|center|right", "fontWeight": "bold|regular", "fontSizePct": number}
+  ],
+  "logo": {"x": number, "y": number, "w": number, "h": number},
+  "productImage": {"x": number, "y": number, "w": number, "h": number},
+  "primaryColor": "#hex",
+  "accentColor": "#hex"
+}
+
+Rules:
+- x, y, w, h are percentages (0-100) of the image width/height, describing a bounding box tight around that element.
+- bgColor is the color of the surface directly behind that text (what you'd need to paint to erase it), not the text color.
+- fontSizePct is the cap-height of the text as a percentage of the image height (roughly 3-10 for most posters).
+- textSegments replaces the old idea of one single "headline" string. A single visual line of text may actually be made of MULTIPLE separately-styled words or phrases (for example, a sentence where two words are a different color, weight, or highlight than the rest). When that happens, split that line into SEPARATE segment objects, one per differently-styled run of words, each with its own tight bounding box, its own textColor/bgColor/fontWeight, so each styled chunk can be edited independently.
+- "line" groups segments that visually sit on the same line/row of the design (segments sharing the same line number were originally read together as one sentence). "order" is the left-to-right (or top-to-bottom for stacked words) reading position of that segment within its line, starting at 0.
+- "role" is a loose label for what job that line is doing overall: "headline" for the most prominent line, "subtitle" for a secondary supporting line, "cta" for a short imperative button-like label. Every segment belonging to the same visual line should share the same role.
+- Do not invent segments if the design has no distinct text playing that role. A design may have zero, one, or several lines, and each line may be one segment or several.
+- logo = the brand's visual mark, INCLUDING stylised wordmarks (brand name rendered in a custom/decorative font, e.g. a company name written in a unique script or logotype). If the brand name appears as a designed logotype rather than plain body-style text, classify it under "logo" (image field), NOT under "brandName" (text field), even though the letters are readable. Only use "brandName" for the brand name when it appears in plain, ordinary text styling alongside other text content.
+- productImage = the main photographic/illustrated subject of the poster, if any.
+- primaryColor and accentColor are the two most defining brand colors used in the design (e.g. button color and a supporting color).
+- Respond with JSON only.`;
+
+  let lastRawResponse = '';
+
+  async function callClaudeVision(base64, mediaType){
+    let response;
+    try {
+      response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-6",
+          max_tokens: 1500,
+          messages: [
+            {
+              role: "user",
+              content: [
+                { type: "image", source: { type: "base64", media_type: mediaType, data: base64 } },
+                { type: "text", text: ANALYSIS_PROMPT }
+              ]
+            }
+          ]
+        })
+      });
+    } catch(networkErr) {
+      lastRawResponse = 'NETWORK ERROR: ' + networkErr.message;
+      throw new Error('Could not reach the analysis service.');
+    }
+
+    if(!response.ok){
+      let errBody = '';
+      try { errBody = await response.text(); } catch(e){}
+      lastRawResponse = 'HTTP ' + response.status + '\n' + errBody;
+      throw new Error('HTTP ' + response.status + ' from the analysis service.');
+    }
+
+    const data = await response.json();
+    lastRawResponse = JSON.stringify(data, null, 2);
+
+    const textBlock = (data.content || []).find(b => b.type === 'text');
+    if(!textBlock){
+      throw new Error('No text block returned in the response.');
+    }
+
+    let clean = textBlock.text.trim();
+    lastRawResponse = 'AI TEXT RESPONSE:\n' + clean;
+
+    clean = clean.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim();
+    const firstBrace = clean.indexOf('{');
+    const lastBrace = clean.lastIndexOf('}');
+    if(firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace){
+      clean = clean.slice(firstBrace, lastBrace + 1);
+    }
+
+    let parsed;
+    try{
+      parsed = JSON.parse(clean);
+    } catch(e){
+      throw new Error('JSON parse failed: ' + e.message);
+    }
+    return parsed;
+  }
+
+  // ---------- collapsible preview ----------
+  function toggleFormPreview(){
+    const body = document.getElementById('preview-body');
+    const chevron = document.getElementById('preview-chevron');
+    body.classList.toggle('open');
+    chevron.classList.toggle('open');
+  }
+
+  function cropRegionThumb(spec, maxOut){
+    if(!spec || !baseImage) return null;
+    const W = baseImage.width, H = baseImage.height;
+    const pct = (v, total) => (v / 100) * total;
+    const x = pct(spec.x, W), y = pct(spec.y, H), w = pct(spec.w, W), h = pct(spec.h, H);
+    const canvas = document.createElement('canvas');
+    const scale = Math.min(1, maxOut / Math.max(w, h, 1));
+    canvas.width = Math.max(1, w * scale);
+    canvas.height = Math.max(1, h * scale);
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(baseImage, x, y, w, h, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/jpeg', 0.85);
+  }
+
+  function normalizeTextSegments(data){
+    if(Array.isArray(data.textSegments) && data.textSegments.length){
+      data.textSegments
+        .slice()
+        .sort((a, b) => (a.line - b.line) || (a.order - b.order))
+        .forEach((seg, i) => {
+          data['seg_' + i] = Object.assign({}, seg, { __segIndex: i });
+        });
+    }
+    return data;
+  }
+
+  // ---------- form ----------
+  function buildForm(data){
+    // Set the preview image
+    if(baseImage){
+      document.getElementById('form-preview-img').src = baseImage.src;
+      document.getElementById('preview-body').classList.add('open');
+      document.getElementById('preview-chevron').classList.remove('open');
+    }
+
+    const container = document.getElementById('dynamic-fields');
+    container.innerHTML = '';
+    orderedLayerKeys = [];
+
+    const segKeys = Object.keys(data)
+      .filter(k => k.startsWith('seg_'))
+      .sort((a, b) => data[a].__segIndex - data[b].__segIndex)
+      .map(k => {
+        const roleLabels = { headline: 'Headline', subtitle: 'Subtitle', cta: 'CTA' };
+        const roleLabel = roleLabels[data[k].role] || 'Text';
+        return [k, roleLabel + ' \u2014 "' + data[k].text.slice(0, 18) + (data[k].text.length > 18 ? '\u2026' : '') + '"'];
+      });
+
+    const textDefs = [
+      ...segKeys,
+      ['cta', 'CTA Button'], ['brandName', 'Brand Name']
+    ].filter(([key]) => data[key] && typeof data[key].text === 'string')
+     .sort((a, b) => (data[a[0]].y || 0) - (data[b[0]].y || 0));
+
+    const mediaDefs = [
+      ['logo', 'Logo'], ['productImage', 'Product Image']
+    ].filter(([key]) => !!data[key])
+     .sort((a, b) => (data[a[0]].y || 0) - (data[b[0]].y || 0));
+
+    let layerNum = 1;
+
+    if(textDefs.length){
+      const div = document.createElement('div');
+      div.className = 'section-divider';
+      div.innerHTML = `<div class="eyebrow">Text — top to bottom</div><div class="line"></div>`;
+      container.appendChild(div);
+    }
+
+    textDefs.forEach(([key, label]) => {
+      const n = layerNum++;
+      orderedLayerKeys.push(key);
+      const wrap = document.createElement('div');
+      wrap.className = 'field';
+      wrap.innerHTML = `<label><span class="layer-badge">${n}</span>${label}</label><input type="text" id="field-${key}" value="${escapeHtml(data[key].text)}">`;
+      container.appendChild(wrap);
+    });
+
+    if(mediaDefs.length){
+      const div = document.createElement('div');
+      div.className = 'section-divider';
+      div.style.marginTop = '4px';
+      div.innerHTML = `<div class="eyebrow">Photos</div><div class="line"></div>`;
+      container.appendChild(div);
+    }
+
+    const logoIcon = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="#8B8B93" stroke-width="1.5"/></svg>';
+    const productIcon = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="4" y="5" width="16" height="14" rx="2" stroke="#8B8B93" stroke-width="1.5"/><circle cx="9" cy="10" r="1.4" fill="#8B8B93"/><path d="M5 17l4.5-4.5L12 15l3-3 4 4.5" stroke="#8B8B93" stroke-width="1.5"/></svg>';
+    const icons = { logo: logoIcon, productImage: productIcon };
+
+    mediaDefs.forEach(([key, label]) => {
+      const n = layerNum++;
+      orderedLayerKeys.push(key);
+      const wrap = document.createElement('div');
+      wrap.className = 'field';
+      const originalCrop = cropRegionThumb(data[key], 120);
+      const thumbContent = originalCrop ? `<img src="${originalCrop}">` : icons[key];
+      wrap.innerHTML = `
+        <label><span class="layer-badge">${n}</span>${label}</label>
+        <div class="field-media">
+          <div class="media-thumb" id="thumb-${key}">${thumbContent}</div>
+          <div class="media-label" id="label-${key}">Using original</div>
+          <div class="replace-link" id="replace-${key}">Replace</div>
+        </div>
+        <span class="view-original-link" id="view-${key}">View original region</span>`;
+      container.appendChild(wrap);
+      const input = document.createElement('input');
+      input.type = 'file'; input.accept = 'image/png, image/jpeg, image/webp';
+      input.id = 'file-' + key;
+      container.appendChild(input);
+      document.getElementById('replace-' + key).addEventListener('click', () => input.click());
+      document.getElementById('view-' + key).addEventListener('click', () => showViewOriginal(key, label));
+      input.addEventListener('change', (e) => {
+        if(!e.target.files || !e.target.files[0]) return;
+        const f = e.target.files[0];
+        resizeImageFile(f, 700).then(res => {
+          replacedImages[key] = res.img;
+          document.getElementById('thumb-' + key).innerHTML = `<img src="${res.dataUrl}">`;
+          document.getElementById('label-' + key).textContent = f.name;
+        });
+      });
+    });
+
+    let colorCount = 0;
+    if(data.primaryColor || data.accentColor){
+      const row = document.createElement('div');
+      row.className = 'color-row';
+      if(data.primaryColor){
+        colorCount++;
+        const c = document.createElement('div');
+        c.className = 'color-field';
+        c.innerHTML = `<label>Primary Color</label>
+          <div class="swatch-input"><input type="color" id="field-primaryColor" value="${data.primaryColor}"><div class="hex" id="hex-primaryColor">${data.primaryColor}</div></div>
+          <div class="hint-sub">Used for the CTA button</div>`;
+        row.appendChild(c);
+      }
+      if(data.accentColor){
+        colorCount++;
+        const c = document.createElement('div');
+        c.className = 'color-field';
+        c.innerHTML = `<label>Accent Color</label>
+          <div class="swatch-input"><input type="color" id="field-accentColor" value="${data.accentColor}"><div class="hex" id="hex-accentColor">${data.accentColor}</div></div>
+          <div class="hint-sub">Used for the headline</div>`;
+        row.appendChild(c);
+      }
+      container.appendChild(row);
+      ['primaryColor','accentColor'].forEach(k => {
+        const inp = document.getElementById('field-' + k);
+        if(inp) inp.addEventListener('input', () => { document.getElementById('hex-' + k).textContent = inp.value; });
+      });
+    }
+
+    document.getElementById('detect-summary').textContent =
+      `${textDefs.length} text field${textDefs.length===1?'':'s'} · ${mediaDefs.length} image${mediaDefs.length===1?'':'s'} · ${colorCount} color${colorCount===1?'':'s'} detected`;
+  }
+
+  function showViewOriginal(key, label){
+    const spec = analysisData[key];
+    if(!spec || !baseImage) return;
+    const W = baseImage.width, H = baseImage.height;
+    const pct = (v, total) => (v / 100) * total;
+    const x = pct(spec.x, W), y = pct(spec.y, H), w = pct(spec.w, W), h = pct(spec.h, H);
+    const pad = Math.max(w, h) * 0.5;
+    const cx = Math.max(0, x - pad), cy = Math.max(0, y - pad);
+    const cw = Math.min(W - cx, w + pad*2), ch = Math.min(H - cy, h + pad*2);
+    const canvas = document.getElementById('view-canvas');
+    const maxOut = 300;
+    const scale = Math.min(1, maxOut / Math.max(cw, ch));
+    canvas.width = cw * scale; canvas.height = ch * scale;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(baseImage, cx, cy, cw, ch, 0, 0, canvas.width, canvas.height);
+    // outline the actual region
+    ctx.strokeStyle = '#8B7CFF'; ctx.lineWidth = 2;
+    ctx.strokeRect((x-cx)*scale, (y-cy)*scale, w*scale, h*scale);
+    document.getElementById('view-modal-title').textContent = label + ' — original region';
+    document.getElementById('view-modal').classList.add('show');
+  }
+
+  function closeViewOriginal(e){
+    if(e && e.target !== e.currentTarget && e.type === 'click' && !e.target.classList.contains('btn')) return;
+    document.getElementById('view-modal').classList.remove('show');
+  }
+
+  function escapeHtml(str){
+    const d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML.replace(/"/g, '&quot;');
+  }
+
+  // ---------- compositing ----------
+  async function generateComposite(){
+    const btn = document.getElementById('generate-btn');
+    btn.disabled = true; btn.textContent = 'Generating…';
+
+    // show the "Generating" screen with an animated thumb + step list, mirroring the analyzing screen
+    const genThumb = document.getElementById('generating-thumb');
+    if(genThumb && baseImage) genThumb.src = baseImage.src;
+    goTo('generating');
+    const genStartTime = Date.now();
+    const GEN_MIN_DISPLAY_MS = 4500; // prototype: always show this screen for at least ~4.5s
+    const genItems = document.querySelectorAll('#generating-step-list .step-item');
+    let gi = 0;
+    clearInterval(genStepTimer);
+    function genTick(){
+      if(gi > 0 && genItems[gi-1]) { genItems[gi-1].classList.remove('current'); genItems[gi-1].classList.add('done'); }
+      if(gi < genItems.length - 1){ genItems[gi].classList.add('current'); gi++; }
+      else if(gi === genItems.length - 1){ genItems[gi].classList.add('current'); }
+    }
+    genTick();
+    genStepTimer = setInterval(genTick, Math.round(GEN_MIN_DISPLAY_MS / genItems.length));
+
+    try{
+      await (document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve());
+      const canvas = document.getElementById('result-canvas');
+      const W = baseImage.width, H = baseImage.height;
+      canvas.width = W; canvas.height = H;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(baseImage, 0, 0, W, H);
+
+      const pct = (v, total) => (v / 100) * total;
+
+      function drawTextBlock(key){
+        const spec = analysisData[key];
+        if(!spec) return;
+        const inputEl = document.getElementById('field-' + key);
+        const text = inputEl ? inputEl.value : spec.text;
+        const x = pct(spec.x, W), y = pct(spec.y, H), w = pct(spec.w, W), h = pct(spec.h, H);
+        const pad = Math.max(w, h) * 0.18;
+        ctx.fillStyle = spec.bgColor || '#000000';
+        ctx.fillRect(x - pad, y - pad, w + pad*2, h + pad*2);
+
+        let textColor = spec.textColor || '#ffffff';
+        let bgForButton = spec.bgColor;
+        if(key === 'cta'){
+          const primaryEl = document.getElementById('field-primaryColor');
+          if(primaryEl){
+            bgForButton = primaryEl.value;
+            ctx.fillStyle = bgForButton;
+            const r = Math.min(h, 18);
+            roundRect(ctx, x - pad, y - pad, w + pad*2, h + pad*2, r);
+            ctx.fill();
+          }
+        }
+        if(spec.role === 'headline' || key === 'headline'){
+          const accentEl = document.getElementById('field-accentColor');
+          if(accentEl) textColor = accentEl.value;
+        }
+
+        const fontSize = Math.max(10, pct(spec.fontSizePct || 5, H));
+        const weight = spec.fontWeight === 'bold' ? '700' : '500';
+        ctx.font = `${weight} ${fontSize}px Inter, sans-serif`;
+        ctx.fillStyle = textColor;
+        ctx.textBaseline = 'middle';
+        let align = spec.align || 'left';
+        ctx.textAlign = align;
+        let tx = x;
+        if(align === 'center') tx = x + w/2;
+        if(align === 'right') tx = x + w;
+        wrapText(ctx, text, tx, y + h/2, w, fontSize * 1.15, align);
+      }
+
+      function roundRect(ctx, x, y, w, h, r){
+        ctx.beginPath();
+        ctx.moveTo(x+r, y);
+        ctx.arcTo(x+w, y, x+w, y+h, r);
+        ctx.arcTo(x+w, y+h, x, y+h, r);
+        ctx.arcTo(x, y+h, x, y, r);
+        ctx.arcTo(x, y, x+w, y, r);
+        ctx.closePath();
+      }
+
+      function wrapText(ctx, text, x, y, maxWidth, lineHeight, align){
+        const words = String(text).split(' ');
+        let lines = [], cur = '';
+        for(const word of words){
+          const test = cur ? cur + ' ' + word : word;
+          if(ctx.measureText(test).width > maxWidth && cur){ lines.push(cur); cur = word; }
+          else cur = test;
+        }
+        if(cur) lines.push(cur);
+        const totalH = lines.length * lineHeight;
+        let startY = y - totalH/2 + lineHeight/2;
+        lines.forEach((line, i) => ctx.fillText(line, x, startY + i*lineHeight));
+      }
+
+      function drawImageBlock(key){
+        const spec = analysisData[key];
+        if(!spec) return;
+        const img = replacedImages[key];
+        if(!img) return;
+        const x = pct(spec.x, W), y = pct(spec.y, H), w = pct(spec.w, W), h = pct(spec.h, H);
+        ctx.save();
+        roundRect(ctx, x, y, w, h, Math.min(w,h)*0.08);
+        ctx.clip();
+        const scale = Math.max(w / img.width, h / img.height);
+        const dw = img.width * scale, dh = img.height * scale;
+        ctx.drawImage(img, x + (w-dw)/2, y + (h-dh)/2, dw, dh);
+        ctx.restore();
+      }
+
+      drawImageBlock('logo');
+      drawImageBlock('productImage');
+      drawTextBlock('brandName');
+      Object.keys(analysisData)
+        .filter(k => k.startsWith('seg_'))
+        .sort((a, b) => analysisData[a].__segIndex - analysisData[b].__segIndex)
+        .forEach(k => drawTextBlock(k));
+      drawTextBlock('cta');
+
+      addHistoryEntry(canvas);
+
+      const genElapsed = Date.now() - genStartTime;
+      const genRemaining = Math.max(400, GEN_MIN_DISPLAY_MS - genElapsed);
+      await new Promise(r => setTimeout(r, genRemaining));
+      clearInterval(genStepTimer);
+      document.querySelectorAll('#generating-step-list .step-item').forEach(i => { i.classList.add('done'); i.classList.remove('current'); });
+      goTo('result');
+    }catch(err){
+      clearInterval(genStepTimer);
+      alert('Could not generate the design: ' + (err.message || err));
+      goTo('form');
+    }finally{
+      btn.disabled = false; btn.textContent = 'Generate';
+    }
+  }
+
+  function downloadResult(){
+    const canvas = document.getElementById('result-canvas');
+    const a = document.createElement('a');
+    a.href = canvas.toDataURL('image/png');
+    a.download = 'mimic-result.png';
+    a.click();
+  }
+
+  function resetFlow(){
+    baseImage = null; analysisData = null; replacedImages = {}; orderedLayerKeys = [];
+    fileInput.value = '';
+    goTo('home');
+  }
+
+  // ---------- responsive scaling ----------
+  function scaleDevice(){
+    const device = document.querySelector('.device');
+    const wrap = document.querySelector('.device-wrap');
+    // On mobile viewports, CSS handles full-screen layout — no JS scaling needed
+    if(window.innerWidth <= 500){
+      device.style.transform = 'none';
+      if(wrap){ wrap.style.width = ''; wrap.style.height = ''; }
+      return;
+    }
+    const vh = window.innerHeight;
+    const vw = window.innerWidth;
+    const dw = 375, dh = 812;
+    const padV = 80, padH = 40;
+    const scaleH = (vh - padV) / dh;
+    const scaleW = (vw - padH) / dw;
+    const s = Math.min(1, scaleH, scaleW);
+    device.style.transform = 'scale(' + s + ')';
+    if(wrap){ wrap.style.width = (dw * s) + 'px'; wrap.style.height = (dh * s) + 'px'; }
+  }
+  scaleDevice();
+  window.addEventListener('resize', scaleDevice);
+</script>
+
+</body>
+</html>
